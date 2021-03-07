@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <MIDI.h>
 #include <Usb.h>
 #include <usbhub.h>
 #include <usbh_midi.h>
@@ -27,6 +28,11 @@ USB Usb;
 USBHub Hub1(&Usb);
 USBH_MIDI  Midi(&Usb);
 
+//Arduino MIDI library v4.2 compatibility
+#ifdef MIDI_CREATE_DEFAULT_INSTANCE
+MIDI_CREATE_DEFAULT_INSTANCE();
+#endif
+
 Bounce debouncerMode = Bounce();
 Bounce debouncerPath1 = Bounce();
 Bounce debouncerPath2 = Bounce();
@@ -34,15 +40,18 @@ Bounce debouncerPath3 = Bounce();
 Bounce debouncerPath4 = Bounce();
 
 byte Mode = 0;
+byte OldMode = 0;
 byte program = 0;
 unsigned long previousMillisMode = 0;
 unsigned long previousMillisTunner = 0;
+unsigned long previousMillisScroll = 0;
 const long interval = 300;
 
 const int ProgramChange = 0;
 const int Bank = 1;
 const int ConfigureBank = 2;
 const int Tuner = 3;
+const int Scroll = 4;
 
 const int firstProgram = 0;
 const int lastProgram = 49;
@@ -61,7 +70,7 @@ const byte TunnerOn = 0x7f;
 const byte TunnerOff = 0x00;
 
 void setup() {
-
+  MIDI.begin(MIDI_CHANNEL_OMNI);
   pinMode(LED_MODE_R, OUTPUT);
   pinMode(LED_MODE_G, OUTPUT);
   pinMode(LED_MODE_B, OUTPUT);
@@ -121,20 +130,31 @@ void loop() {
   bool isPath3 = debouncerPath3.fell() || debouncerPath3.rose();
   bool isPath4 = debouncerPath4.fell() || debouncerPath4.rose();
 
+    uint8_t msg[4];
+  if (MIDI.read()) {
+    //msg[0] = MIDI.getType();
+    WriteMessage("Read MSG: ");
+  }
+
   if ( isMode) {
     bool doubleClick = millis() - previousMillisMode <= interval;
     ChangeMode(doubleClick);
     previousMillisMode = millis();
-  } else if ( isPath1 )
-    TooglePatch1();
-  else if ( isPath2 )
+  } else if ( isPath1 ) {
+    bool doubleClick = millis() - previousMillisScroll <= interval;
+    if (doubleClick) {
+      ChangeScroll();
+    } else  {
+      TooglePatch1();
+    }
+    previousMillisScroll = millis();
+  } else if ( isPath2 )
     TooglePatch2();
   else if ( isPath3 )
     TooglePatch3();
   else if ( isPath4 ) {
     bool doubleClick = millis() - previousMillisTunner <= interval;
     if (doubleClick) {
-      WriteMessage("Tunner");
       ChangeTunner();
     } else  {
       TooglePatch4();
@@ -143,8 +163,18 @@ void loop() {
   }
 }
 
+void ChangeScroll() {
+  WriteMessage("Scroll Mode Enable");
+  SendMidiRequestPatch();
+  OldMode = Mode;
+  Mode = Scroll;
+  ConfigureLedByMode(Mode);
+}
+
 void ChangeTunner() {
+  WriteMessage("Tunner Mode Enable");
   SendMidiTunner(TunnerOn);
+  OldMode = Mode;
   Mode = Tuner;
   ConfigureLedByMode(Mode);
 }
@@ -152,9 +182,7 @@ void ChangeTunner() {
 void ChangeMode(bool doubleClick) {
   WriteMessage("Button Mode click.");
 
-  if (Mode == Tuner) {
-    SendMidiTunner(TunnerOff);
-  }
+  BackOldMode();
 
   OffLeds();
 
@@ -173,6 +201,17 @@ void ChangeMode(bool doubleClick) {
   ConfigureLedByMode(Mode);
 }
 
+void BackOldMode() {
+  if (Mode == Tuner) {
+    SendMidiTunner(TunnerOff);
+    Mode = OldMode;
+    ConfigureLedByMode(Mode);
+  } else if (Mode == Scroll) {
+    Mode = OldMode;
+    ConfigureLedByMode(Mode);
+  }
+}
+
 void ChangePath(bool &active, byte &patchToSet, int pathPosition) {
 
   if (Mode == Bank) {
@@ -186,6 +225,7 @@ void ChangePath(bool &active, byte &patchToSet, int pathPosition) {
     Execute(program);
     WriteMessage("Active: " + (String)active + ", Program " + (String)program);
   } else if (Mode == ConfigureBank) {
+    WriteMessage("Save position " + (String)pathPosition + ", Program " + (String)program);
     UpdateMemory(pathPosition, program);
     patchToSet = program;
   }
@@ -227,6 +267,8 @@ void Down() {
 void TooglePatch1() {
   LogTooglePath(patch1Active, 1);
 
+  BackOldMode();
+
   if (Mode == ProgramChange) {
     Blink(LED_PATCH1);
     Up();
@@ -242,9 +284,13 @@ void TooglePatch1() {
 void TooglePatch2() {
   LogTooglePath(patch2Active, 2);
 
+  BackOldMode();
+
   if (Mode == ProgramChange) {
     Blink(LED_PATCH2);
     Down();
+  } else if (Mode == Scroll) {
+    WriteMessage("Scrool Right");
   } else {
     ChangePath(patch2Active, patch2, 2);
     if (Mode == ConfigureBank)
@@ -257,18 +303,25 @@ void TooglePatch2() {
 void TooglePatch3() {
   LogTooglePath(patch3Active, 3);
 
+  BackOldMode();
+
   if (Mode == ProgramChange)
     return;
 
   ChangePath(patch3Active, patch3, 3);
   if (Mode == ConfigureBank)
     Blink(LED_PATCH3);
+  else if (Mode == Scroll) {
+    WriteMessage("Scrool Left");
+  }
   else
     changeLeds(LOW, LOW, patch3Active ? HIGH : LOW, LOW);
 }
 
 void TooglePatch4() {
   LogTooglePath(patch4Active, 4);
+
+  BackOldMode();
 
   if (Mode == ProgramChange)
     return;

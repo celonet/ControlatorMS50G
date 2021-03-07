@@ -35,6 +35,7 @@ void ShowConfiguration()
   1 - Bank
   2 - Configure
   3 - Tuner
+  4 - Scroll
 */
 String ParseConfiguration(int mode) {
   switch (mode)
@@ -47,11 +48,13 @@ String ParseConfiguration(int mode) {
       return "Configure Bank";
     case Tuner:
       return "Tuner";
+    case Scroll:
+      return "Scroll";
     default:
       return "Configuration Not Found";
   }
 }
 
 int nextMode(int mode) {
-  return mode == 0 ? 1 : 0;
+  return mode == ProgramChange ? Bank : ProgramChange;
 }

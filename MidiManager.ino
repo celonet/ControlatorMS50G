@@ -58,3 +58,22 @@ bool SendMidiTunner(int cmd) {
   }
   return sended;
 }
+
+void SendMidiRequestPatch(){
+  bool sended = false;
+  Usb.Task();
+  if ( Usb.getUsbTaskState() == USB_STATE_RUNNING )
+  {
+    byte message[5];
+    message[0] = 0xf0;
+    message[1] = 0x52;
+    message[2] = 0x00;
+    message[3] = 0x58;
+    message[4] = 0x29;
+    message[5] = 0xf7;
+    Midi.SendData(message);
+    delay(10);
+    sended = true;
+  }
+  return sended;  
+}

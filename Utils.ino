@@ -22,5 +22,5 @@ String FormatPoints(int qtde) {
 
 void LogTooglePath(bool patchActive, int pathPosition) {
   String enabled = !patchActive ? "Enable" : "Disable";
-  WriteMessage("Button Path " + (String)pathPosition + " " + enabled);
+  WriteMessage("Button " + (String)pathPosition + " " + enabled);
 }

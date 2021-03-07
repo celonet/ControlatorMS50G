@@ -15,6 +15,7 @@ void OffLeds() {
   changeLeds(LOW, LOW, LOW, LOW);
 }
 
+
 void OnLeds() {
   changeLeds(HIGH, HIGH, HIGH, HIGH);
 }
@@ -72,6 +73,9 @@ void ConfigureLedByMode(int mode) {
       break;
     case Tuner:
       LedBranco();
+      break;
+    case Scroll:
+      LedRoxo();
       break;
     default:
       LedApagado();
